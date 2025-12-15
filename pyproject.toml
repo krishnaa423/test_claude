@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dft_pw"
+version = "0.1.0"
+description = "A simple DFT plane wave code"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "DFT Developer"}
+]
+dependencies = [
+    "numpy>=1.20.0",
+    "scipy>=1.7.0",
+    "spglib>=2.0.0",
+]
+
+[project.optional-dependencies]
+libxc = ["pylibxc>=5.1.0"]
+dev = ["pytest>=7.0.0"]
+
+[project.scripts]
+dft-pw = "dft_pw.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
