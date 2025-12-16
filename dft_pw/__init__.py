@@ -11,9 +11,11 @@ from .scf import SCFSolver
 from .calculator import DFTCalculator
 from .hdf5_output import HDF5Output
 from .nscf import KGrid, Nscf, DftElbands, NscfResult
+from .wannier import Wannier, WannierResult
 
 __version__ = "0.1.0"
 __all__ = [
     "Crystal", "Atom", "PlaneWaveBasis", "KPoints", "SCFSolver", "DFTCalculator", "HDF5Output",
-    "KGrid", "Nscf", "DftElbands", "NscfResult"
+    "KGrid", "Nscf", "DftElbands", "NscfResult",
+    "Wannier", "WannierResult"
 ]
