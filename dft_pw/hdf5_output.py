@@ -6,6 +6,7 @@ Saves wavefunctions, charge density, and energies to HDF5 format.
 
 import numpy as np
 import h5py
+import matplotlib.pyplot as plt
 from typing import Dict, Optional
 from datetime import datetime
 
@@ -214,3 +215,50 @@ def save_scf_to_hdf5(filename: str, scf_result, crystal, kpoints,
         n_iterations=scf_result.n_iterations,
         fft_grid_shape=tuple(fft_grid.ng)
     )
+
+
+def plot_charge_density(filename: str, output_png: str = "charge_density.png",
+                        slice_axis: int = 2, slice_index: int = None) -> None:
+    """
+    Create a pcolormesh plot of charge density from HDF5 file.
+
+    Args:
+        filename: Input HDF5 filename
+        output_png: Output PNG filename (default: charge_density.png)
+        slice_axis: Axis to slice along (0, 1, or 2) - default 2 (z-axis)
+        slice_index: Index along slice_axis (default: middle of grid)
+    """
+    with h5py.File(filename, 'r') as f:
+        density = f['density/rho'][:]
+        grid_shape = density.shape
+
+    # Get slice index (default to middle)
+    if slice_index is None:
+        slice_index = grid_shape[slice_axis] // 2
+
+    # Extract 2D slice
+    if slice_axis == 0:
+        density_2d = density[slice_index, :, :]
+        xlabel, ylabel = 'y', 'z'
+    elif slice_axis == 1:
+        density_2d = density[:, slice_index, :]
+        xlabel, ylabel = 'x', 'z'
+    else:  # slice_axis == 2
+        density_2d = density[:, :, slice_index]
+        xlabel, ylabel = 'x', 'y'
+
+    # Create pcolormesh plot with viridis colormap
+    fig, ax = plt.subplots(figsize=(8, 6))
+    mesh = ax.pcolormesh(density_2d.T, cmap='viridis', shading='auto')
+    cbar = fig.colorbar(mesh, ax=ax, label='Charge density (electrons/bohr³)')
+
+    ax.set_xlabel(f'{xlabel} (grid points)')
+    ax.set_ylabel(f'{ylabel} (grid points)')
+    ax.set_title(f'Charge Density (slice at {["x", "y", "z"][slice_axis]}={slice_index})')
+    ax.set_aspect('equal')
+
+    plt.tight_layout()
+    plt.savefig(output_png, dpi=150)
+    plt.close()
+
+    print(f"Charge density plot saved to {output_png}")
