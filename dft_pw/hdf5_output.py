@@ -184,7 +184,144 @@ class HDF5Output:
             # Density
             results['density'] = f['density/rho'][:]
 
+            # FFT grid shape
+            if 'grid_shape' in f['density'].attrs:
+                results['fft_grid_shape'] = tuple(f['density'].attrs['grid_shape'])
+
         return results
+
+    def write_nscf_results(self,
+                          crystal,
+                          kgrid,
+                          eigenvalues: Dict[int, np.ndarray],
+                          eigenvectors: Dict[int, np.ndarray],
+                          converged: bool = True):
+        """
+        Write NSCF results to HDF5 file.
+
+        Args:
+            crystal: Crystal structure
+            kgrid: KGrid object
+            eigenvalues: Dict mapping k-point index to eigenvalues
+            eigenvectors: Dict mapping k-point index to eigenvectors (wavefunctions)
+            converged: Whether calculation converged
+        """
+        with h5py.File(self.filename, 'w') as f:
+            # Metadata
+            f.attrs['title'] = 'NSCF Calculation'
+            f.attrs['created'] = datetime.now().isoformat()
+            f.attrs['converged'] = converged
+            f.attrs['type'] = 'NSCF'
+
+            # Crystal structure group
+            crystal_grp = f.create_group('crystal')
+            crystal_grp.create_dataset('cell', data=crystal.cell)
+            crystal_grp.attrs['volume_bohr3'] = crystal.volume
+            crystal_grp.attrs['n_atoms'] = crystal.num_atoms
+
+            # Atomic positions
+            positions = np.array([atom.position for atom in crystal.atoms])
+            symbols = [atom.symbol for atom in crystal.atoms]
+            crystal_grp.create_dataset('positions_fractional', data=positions)
+            crystal_grp.create_dataset('positions_cartesian', data=crystal.get_cartesian_positions())
+            # Store symbols as fixed-length strings
+            dt = h5py.string_dtype(encoding='utf-8')
+            crystal_grp.create_dataset('symbols', data=symbols, dtype=dt)
+
+            # K-points group
+            kpts_grp = f.create_group('kpoints')
+            kpts_grp.attrs['n_kpoints'] = kgrid.nkpts
+            kpts_grp.create_dataset('kpoints_fractional', data=kgrid.kpoints_frac)
+            kpts_grp.create_dataset('kpoints_cartesian', data=kgrid.kpoints_cart)
+            kpts_grp.create_dataset('weights', data=kgrid.weights)
+
+            # Eigenvalues group
+            eigen_grp = f.create_group('eigenvalues')
+            for ik in eigenvalues:
+                eigen_grp.create_dataset(f'kpoint_{ik}', data=eigenvalues[ik])
+                eigen_grp[f'kpoint_{ik}'].attrs['units'] = 'Hartree'
+
+            # Wavefunctions group
+            wfc_grp = f.create_group('wavefunctions')
+            wfc_grp.attrs['description'] = 'Plane wave coefficients for each k-point and band'
+            for ik in eigenvectors:
+                # eigenvectors[ik] has shape (npw, nbands)
+                wfc_grp.create_dataset(f'kpoint_{ik}', data=eigenvectors[ik])
+                wfc_grp[f'kpoint_{ik}'].attrs['shape'] = '(n_planewaves, n_bands)'
+
+        print(f"NSCF results written to {self.filename}")
+
+    def write_dftelbands_results(self,
+                                crystal,
+                                kgrid,
+                                eigenvalues: Dict[int, np.ndarray],
+                                eigenvectors: Dict[int, np.ndarray],
+                                path_str: str,
+                                special_points: Dict,
+                                converged: bool = True):
+        """
+        Write DFT band structure results to HDF5 file.
+
+        Args:
+            crystal: Crystal structure
+            kgrid: KGrid object with band structure path
+            eigenvalues: Dict mapping k-point index to eigenvalues
+            eigenvectors: Dict mapping k-point index to eigenvectors
+            path_str: Band structure path specification (e.g., 'GXWLGK')
+            special_points: Dict mapping point names to coordinates
+            converged: Whether calculation converged
+        """
+        with h5py.File(self.filename, 'w') as f:
+            # Metadata
+            f.attrs['title'] = 'DFT Band Structure'
+            f.attrs['created'] = datetime.now().isoformat()
+            f.attrs['converged'] = converged
+            f.attrs['type'] = 'DFT_ELBANDS'
+            f.attrs['path'] = path_str
+
+            # Crystal structure group
+            crystal_grp = f.create_group('crystal')
+            crystal_grp.create_dataset('cell', data=crystal.cell)
+            crystal_grp.attrs['volume_bohr3'] = crystal.volume
+            crystal_grp.attrs['n_atoms'] = crystal.num_atoms
+
+            # Atomic positions
+            positions = np.array([atom.position for atom in crystal.atoms])
+            symbols = [atom.symbol for atom in crystal.atoms]
+            crystal_grp.create_dataset('positions_fractional', data=positions)
+            crystal_grp.create_dataset('positions_cartesian', data=crystal.get_cartesian_positions())
+            # Store symbols as fixed-length strings
+            dt = h5py.string_dtype(encoding='utf-8')
+            crystal_grp.create_dataset('symbols', data=symbols, dtype=dt)
+
+            # K-points group
+            kpts_grp = f.create_group('kpoints')
+            kpts_grp.attrs['n_kpoints'] = kgrid.nkpts
+            kpts_grp.attrs['path'] = path_str
+            kpts_grp.create_dataset('kpoints_fractional', data=kgrid.kpoints_frac)
+            kpts_grp.create_dataset('kpoints_cartesian', data=kgrid.kpoints_cart)
+            kpts_grp.create_dataset('weights', data=kgrid.weights)
+
+            # Special points group
+            special_pts_grp = f.create_group('special_points')
+            for name, coords in special_points.items():
+                special_pts_grp.create_dataset(name, data=coords)
+
+            # Eigenvalues group
+            eigen_grp = f.create_group('eigenvalues')
+            for ik in eigenvalues:
+                eigen_grp.create_dataset(f'kpoint_{ik}', data=eigenvalues[ik])
+                eigen_grp[f'kpoint_{ik}'].attrs['units'] = 'Hartree'
+
+            # Wavefunctions group
+            wfc_grp = f.create_group('wavefunctions')
+            wfc_grp.attrs['description'] = 'Plane wave coefficients for each k-point and band'
+            for ik in eigenvectors:
+                # eigenvectors[ik] has shape (npw, nbands)
+                wfc_grp.create_dataset(f'kpoint_{ik}', data=eigenvectors[ik])
+                wfc_grp[f'kpoint_{ik}'].attrs['shape'] = '(n_planewaves, n_bands)'
+
+        print(f"DFT band structure results written to {self.filename}")
 
 
 def save_scf_to_hdf5(filename: str, scf_result, crystal, kpoints,
