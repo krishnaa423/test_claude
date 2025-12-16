@@ -15,6 +15,7 @@ import h5py
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dft_pw import Crystal, DFTCalculator
+from dft_pw.hdf5_output import plot_charge_density
 
 
 def main():
@@ -95,6 +96,13 @@ def main():
     print("=" * 60)
     print(f"\nFile: {output_file}")
     print_hdf5_contents(output_file)
+
+    # Generate charge density plot
+    print("\n" + "=" * 60)
+    print("Generating Charge Density Plot")
+    print("=" * 60)
+    png_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'charge_density.png')
+    plot_charge_density(output_file, png_file)
 
     return result
 
