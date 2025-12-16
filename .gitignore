@@ -61,3 +61,10 @@ venv.bak/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+
+# Example outputs and data files
+examples/*.h5
+examples/*.png
+results/
+*.h5
+*.png
