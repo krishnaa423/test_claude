@@ -20,6 +20,7 @@ class SCFResult:
     n_iterations: int
     total_energy: float
     eigenvalues: Dict[int, np.ndarray]  # k-point index -> eigenvalues
+    eigenvectors: Dict[int, np.ndarray]  # k-point index -> wavefunctions
     occupations: Dict[int, np.ndarray]  # k-point index -> occupations
     density: np.ndarray  # Final density on real-space grid
     fermi_energy: float
@@ -259,6 +260,7 @@ class SCFSolver:
             n_iterations=iteration + 1,
             total_energy=total_energy,
             eigenvalues=eigenvalues,
+            eigenvectors=eigenvectors,
             occupations=occupations,
             density=rho_r,
             fermi_energy=fermi_energy

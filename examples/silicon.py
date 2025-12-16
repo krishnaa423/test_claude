@@ -3,12 +3,13 @@
 Silicon DFT calculation example.
 
 This example demonstrates a basic DFT calculation for bulk Silicon
-using the plane wave code.
+using the plane wave code, with HDF5 output.
 """
 
 import os
 import sys
 import numpy as np
+import h5py
 
 # Add parent directory to path for development
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -58,14 +59,18 @@ def main():
         use_symmetry=True
     )
 
-    # Run calculation
+    # Output HDF5 file path
+    output_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scf.h5')
+
+    # Run calculation with HDF5 output
     print("\nStarting SCF calculation...")
     result = calc.calculate(
         max_scf_iter=50,
         scf_tol=1e-5,
         mixing='pulay',
         mixing_alpha=0.3,
-        verbose=True
+        verbose=True,
+        save_hdf5=output_file
     )
 
     # Print eigenvalues at each k-point
@@ -84,7 +89,60 @@ def main():
         for iband, (e, occ) in enumerate(zip(eigs, result.occupations[ik])):
             print(f"  {iband + 1:4d}   {occ:8.4f}     {e:12.6f}   {e * ha_to_ev:12.6f}")
 
+    # Show HDF5 file contents
+    print("\n" + "=" * 60)
+    print("HDF5 Output File Contents")
+    print("=" * 60)
+    print(f"\nFile: {output_file}")
+    print_hdf5_contents(output_file)
+
     return result
+
+
+def print_hdf5_contents(filename):
+    """Print summary of HDF5 file contents."""
+    with h5py.File(filename, 'r') as f:
+        print(f"\nFile attributes:")
+        for key, val in f.attrs.items():
+            print(f"  {key}: {val}")
+
+        print(f"\nGroups and datasets:")
+
+        def print_structure(name, obj):
+            indent = "  " * (name.count('/') + 1)
+            if isinstance(obj, h5py.Group):
+                print(f"{indent}[Group] {name}/")
+                for key, val in obj.attrs.items():
+                    print(f"{indent}  @{key}: {val}")
+            elif isinstance(obj, h5py.Dataset):
+                shape_str = str(obj.shape)
+                dtype_str = str(obj.dtype)
+                print(f"{indent}[Dataset] {name}: shape={shape_str}, dtype={dtype_str}")
+
+        f.visititems(print_structure)
+
+        # Print some sample data
+        print("\n" + "-" * 40)
+        print("Sample Data:")
+        print("-" * 40)
+
+        print(f"\nTotal Energy: {f['energies'].attrs['total_energy_Ha']:.8f} Ha")
+        print(f"Fermi Energy: {f['energies'].attrs['fermi_energy_Ha']:.8f} Ha")
+        if 'band_gap_eV' in f['energies'].attrs:
+            print(f"Band Gap: {f['energies'].attrs['band_gap_eV']:.4f} eV")
+
+        print(f"\nCharge density grid shape: {f['density/rho'].shape}")
+        print(f"Total charge: {f['density'].attrs['total_charge']:.4f} electrons")
+
+        print(f"\nNumber of k-points: {f['kpoints'].attrs['n_kpoints']}")
+        print(f"K-grid: {f['kpoints'].attrs['grid']}")
+
+        # Wavefunction info
+        wfc_keys = list(f['wavefunctions'].keys())
+        if wfc_keys:
+            sample_wfc = f[f'wavefunctions/{wfc_keys[0]}']
+            print(f"\nWavefunction shape per k-point: {sample_wfc.shape}")
+            print(f"  (n_planewaves, n_bands)")
 
 
 if __name__ == '__main__':

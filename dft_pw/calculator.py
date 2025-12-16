@@ -11,6 +11,7 @@ from .crystal import Crystal, Atom
 from .kpoints import KPoints
 from .pseudopotential import read_upf, Pseudopotential
 from .scf import SCFSolver, SCFResult
+from .hdf5_output import HDF5Output
 
 
 @dataclass
@@ -19,10 +20,13 @@ class DFTResult:
     total_energy: float  # Hartree
     fermi_energy: float  # Hartree
     eigenvalues: Dict[int, np.ndarray]  # k-point -> eigenvalues
+    eigenvectors: Dict[int, np.ndarray]  # k-point -> wavefunctions
     occupations: Dict[int, np.ndarray]  # k-point -> occupations
+    density: np.ndarray  # Charge density on real-space grid
     converged: bool
     n_scf_iterations: int
     band_gap: Optional[float] = None  # eV
+    fft_grid_shape: Optional[tuple] = None  # FFT grid dimensions
 
     def print_summary(self):
         """Print summary of results."""
@@ -129,7 +133,8 @@ class DFTCalculator:
 
     def calculate(self, max_scf_iter: int = 100, scf_tol: float = 1e-6,
                   mixing: str = 'pulay', mixing_alpha: float = 0.3,
-                  n_bands: int = None, verbose: bool = True) -> DFTResult:
+                  n_bands: int = None, verbose: bool = True,
+                  save_hdf5: str = None) -> DFTResult:
         """
         Run DFT calculation.
 
@@ -140,6 +145,7 @@ class DFTCalculator:
             mixing_alpha: Mixing parameter
             n_bands: Number of bands (default: auto)
             verbose: Print progress
+            save_hdf5: If provided, save results to this HDF5 file
 
         Returns:
             DFTResult with calculation results
@@ -157,6 +163,9 @@ class DFTCalculator:
             n_bands=n_bands,
             smearing=self.smearing
         )
+
+        # Store reference to SCF solver for HDF5 output
+        self._scf = scf
 
         # Run SCF
         scf_result = scf.solve(
@@ -176,16 +185,47 @@ class DFTCalculator:
             total_energy=scf_result.total_energy,
             fermi_energy=scf_result.fermi_energy,
             eigenvalues=scf_result.eigenvalues,
+            eigenvectors=scf_result.eigenvectors,
             occupations=scf_result.occupations,
+            density=scf_result.density,
             converged=scf_result.converged,
             n_scf_iterations=scf_result.n_iterations,
-            band_gap=band_gap
+            band_gap=band_gap,
+            fft_grid_shape=tuple(scf.fft_grid.ng)
         )
 
         if verbose:
             result.print_summary()
 
+        # Save to HDF5 if requested
+        if save_hdf5:
+            self.save_to_hdf5(save_hdf5, result)
+
         return result
+
+    def save_to_hdf5(self, filename: str, result: DFTResult) -> None:
+        """
+        Save DFT results to HDF5 file.
+
+        Args:
+            filename: Output filename (e.g., 'scf.h5')
+            result: DFTResult object
+        """
+        output = HDF5Output(filename)
+        output.write_scf_results(
+            crystal=self.crystal,
+            kpoints=self.kpoints,
+            eigenvalues=result.eigenvalues,
+            eigenvectors=result.eigenvectors,
+            occupations=result.occupations,
+            density=result.density,
+            total_energy=result.total_energy,
+            fermi_energy=result.fermi_energy,
+            band_gap=result.band_gap,
+            converged=result.converged,
+            n_iterations=result.n_scf_iterations,
+            fft_grid_shape=result.fft_grid_shape
+        )
 
     def _calculate_band_gap(self, eigenvalues: Dict[int, np.ndarray],
                             occupations: Dict[int, np.ndarray]) -> Optional[float]:

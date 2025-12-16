@@ -9,6 +9,7 @@ from .basis import PlaneWaveBasis
 from .kpoints import KPoints
 from .scf import SCFSolver
 from .calculator import DFTCalculator
+from .hdf5_output import HDF5Output
 
 __version__ = "0.1.0"
-__all__ = ["Crystal", "Atom", "PlaneWaveBasis", "KPoints", "SCFSolver", "DFTCalculator"]
+__all__ = ["Crystal", "Atom", "PlaneWaveBasis", "KPoints", "SCFSolver", "DFTCalculator", "HDF5Output"]
